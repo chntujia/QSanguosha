@@ -158,14 +158,12 @@ public:
             const Card* oldJudge = judge->card;
             judge->card = Sanguosha->getCard(card->getEffectiveId());
 
-            /* revive this after TopDrawPile works
-            CardsMoveStruct move1(QList<int>(), NULL, Player::TopDrawPile,
-                CardMoveReason(CardMoveReason::S_REASON_RETRIAL, player->objectName(), this->objectName(), QString()));  */
-            CardsMoveStruct move1(QList<int>(), NULL, Player::DiscardPile,
-                CardMoveReason(CardMoveReason::S_REASON_JUDGEDONE, player->objectName(), this->objectName(), QString()));
+            CardsMoveStruct move1(QList<int>(), NULL, Player::PlaceTable,
+                CardMoveReason(CardMoveReason::S_REASON_RETRIAL, player->objectName(), this->objectName(), QString()));
+
             move1.card_ids.append(card->getEffectiveId());
             
-            CardsMoveStruct move2(QList<int>(), player, Player::Hand,
+            CardsMoveStruct move2(QList<int>(), player, Player::PlaceHand,
                 CardMoveReason(CardMoveReason::S_REASON_OVERRIDE, player->objectName(), this->objectName(), QString()));
             move2.card_ids.append(oldJudge->getEffectiveId());
 
@@ -702,9 +700,10 @@ TianxiangCard::TianxiangCard()
 
 void TianxiangCard::onEffect(const CardEffectStruct &effect) const{
     Room *room = effect.to->getRoom();
+    room->throwCard(this, effect.from);
     DamageStruct damage = effect.from->tag["TianxiangDamage"].value<DamageStruct>();
     damage.to = effect.to;
-    damage.chain = true;
+    damage.transfer = true;
     room->damage(damage);
 
     if(damage.to->isAlive())
@@ -771,13 +770,14 @@ bool GuhuoCard::guhuo(ServerPlayer* yuji, const QString& message) const{
     room->setTag("Guhuoing", true);
     room->setTag("GuhuoType", this->user_string);
 
-    // yuji->addToPile("#guhuo_pile", this->getEffectiveId(), false);
-    // this card should put in to the DealingArea with the back on top(for UI)
-    /* revive this after DealingArea works
-    room->moveCardTo(this, yuji, NULL, Player::DealingArea,
-        CardMoveReason(CardMoveReason::S_REASON_RESPONSE, yuji->objectName(), "guhuo", user_string), false);  */
     QList<ServerPlayer *> players = room->getOtherPlayers(yuji);
     QSet<ServerPlayer *> questioned;
+
+    QList<int> used_cards;
+    QList<CardsMoveStruct> moves;
+    foreach(int card_id, getSubcards()){
+        used_cards << card_id;
+    }
 
     foreach(ServerPlayer *player, players){
         if(player->getHp() <= 0){
@@ -821,9 +821,12 @@ bool GuhuoCard::guhuo(ServerPlayer* yuji, const QString& message) const{
 
         foreach(ServerPlayer *player, players)
             room->setEmotion(player, ".");
-        if(yuji->getPhase() == Player::Play)
-            room->moveCardTo(this, yuji, NULL, Player::DiscardPile,
-                CardMoveReason(CardMoveReason::S_REASON_USE, yuji->objectName(), QString(), user_string), true, false);
+        if(yuji->getPhase() == Player::Play){
+            CardMoveReason reason(CardMoveReason::S_REASON_USE, yuji->objectName(), QString(), user_string);
+            CardsMoveStruct move(used_cards, yuji, NULL, Player::PlaceTable, reason);
+            moves.append(move);
+            room->moveCardsAtomic(moves, true);
+        }
         else if(yuji->getPhase() == Player::NotActive)
             room->moveCardTo(this, yuji, NULL, Player::DiscardPile,
                 CardMoveReason(CardMoveReason::S_REASON_RESPONSE, yuji->objectName(), QString(), user_string), true, false);
@@ -837,15 +840,20 @@ bool GuhuoCard::guhuo(ServerPlayer* yuji, const QString& message) const{
             real = card->match(user_string);
 
         success = real && card->getSuit() == Card::Heart;
-        if(success && yuji->getPhase() == Player::Play)
-            room->moveCardTo(this, yuji, NULL, Player::DiscardPile,
-                CardMoveReason(CardMoveReason::S_REASON_USE, yuji->objectName(), QString(), user_string), true, false);
-        else if(success && yuji->getPhase() == Player::NotActive)
+        if(success && yuji->getPhase() == Player::Play){
+            CardMoveReason reason(CardMoveReason::S_REASON_USE, yuji->objectName(), QString(), user_string);
+            CardsMoveStruct move(used_cards, yuji, NULL, Player::PlaceTable, reason);
+            moves.append(move);
+            room->moveCardsAtomic(moves, true);
+        }
+        else if(success && yuji->getPhase() == Player::NotActive){
             room->moveCardTo(this, yuji, NULL, Player::DiscardPile,
                 CardMoveReason(CardMoveReason::S_REASON_RESPONSE, yuji->objectName(), QString(), user_string), true, false);
-        else
+        }
+        else{
             room->moveCardTo(this, yuji, NULL, Player::DiscardPile,
                 CardMoveReason(CardMoveReason::S_REASON_PUT, yuji->objectName(), QString(), user_string), true, false);
+        }
         foreach(ServerPlayer *player, players){
             room->setEmotion(player, ".");
 

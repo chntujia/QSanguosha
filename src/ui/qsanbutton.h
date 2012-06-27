@@ -17,6 +17,7 @@ public:
     void click();
     void setStyle(ButtonStyle style);
     void setState(ButtonState state);
+    inline ButtonState getState() { return _m_state; }
     void setRect(QRect rect);
     virtual QRectF boundingRect() const;
     bool insideButton(QPointF pos) const;
@@ -33,6 +34,7 @@ protected:
     QString _m_buttonName;
     QRegion _m_mask;
     QSize _m_size;
+    bool _m_mouseEntered;
 signals:
     void clicked();
 };

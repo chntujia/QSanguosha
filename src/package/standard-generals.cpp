@@ -17,11 +17,7 @@ public:
     virtual void onDamaged(ServerPlayer *caocao, const DamageStruct &damage) const{
         Room *room = caocao->getRoom();
         const Card *card = damage.card;
-        /* revive this after DealingArea works
-        if(room->getCardPlace(card->getEffectiveId()) == Player::DealingArea){  */
-        ServerPlayer *owner = room->getCardOwner(card->getEffectiveId());
-        if((!card->isVirtualCard() || card->getSubcards().length() > 0)
-            && (!owner || owner->objectName() != caocao->objectName())){
+        if(card && room->getCardPlace(card->getEffectiveId()) == Player::PlaceTable){
 
             QVariant data = QVariant::fromValue(card);
             if(room->askForSkillInvoke(caocao, "jianxiong", data)){
@@ -228,7 +224,7 @@ public:
         if(from && !from->isNude() && room->askForSkillInvoke(simayi, "fankui", data)){
             int card_id = room->askForCardChosen(simayi, from, "he", "fankui");
             CardMoveReason reason(CardMoveReason::S_REASON_EXTRACTION, simayi->objectName());
-            room->obtainCard(simayi, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::Hand);
+            room->obtainCard(simayi, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::PlaceHand);
             room->broadcastSkillInvoke(objectName());
         }
     }
@@ -284,17 +280,14 @@ public:
         if(card){
             // the only difference for Guicai & Guidao
             CardMoveReason reason(CardMoveReason::S_REASON_JUDGEDONE, judge->who->objectName(), QString(), QString());
-            // remove below after TopDrawPile works
             if(room->getCardPlace(judge->card->getEffectiveId()) != Player::DiscardPile
-               || room->getCardPlace(judge->card->getEffectiveId()) != Player::Hand)
+               || room->getCardPlace(judge->card->getEffectiveId()) != Player::PlaceHand)
             room->throwCard(judge->card, reason, judge->who);
 
             judge->card = Sanguosha->getCard(card->getEffectiveId());
-            /* revive this after TopDrawPile works
-            room->moveCardTo(judge->card, player, NULL, Player::TopDrawPile,
-                CardMoveReason(CardMoveReason::S_REASON_RETRIAL, player->objectName(), "guicai", QString()), true);  */
-            room->moveCardTo(judge->card, player, judge->who, Player::Special,
-                CardMoveReason(CardMoveReason::S_REASON_JUDGEDONE, player->objectName(), "guicai", QString()), true);
+
+            room->moveCardTo(judge->card, player, judge->who, Player::PlaceTable,
+                CardMoveReason(CardMoveReason::S_REASON_RETRIAL, player->objectName(), "guicai", QString()), true);
             LogMessage log;
             log.type = "$ChangedJudge";
             log.from = player;
@@ -733,7 +726,7 @@ public:
     virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *player, QVariant &data) const{
         if(player->isKongcheng()){
             CardsMoveOneTimeStar move = data.value<CardsMoveOneTimeStar>();
-            if(move->from_places.contains(Player::Hand))
+            if(move->from_places.contains(Player::PlaceHand))
                 player->getRoom()->broadcastSkillInvoke("kongcheng");
         }
 
@@ -922,7 +915,7 @@ public:
     virtual bool trigger(TriggerEvent , Room* room, ServerPlayer *luxun, QVariant &data) const{
         if (luxun == NULL) return false;
         CardsMoveOneTimeStar move = data.value<CardsMoveOneTimeStar>();
-        if(luxun->isKongcheng() && move->from_places.contains(Player::Hand)){
+        if(luxun->isKongcheng() && move->from_places.contains(Player::PlaceHand)){
             if(room->askForSkillInvoke(luxun, objectName(), data)){
                 room->broadcastSkillInvoke(objectName());
                 luxun->drawCards(1);
@@ -1093,7 +1086,7 @@ public:
     virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *sunshangxiang, QVariant &data) const{
         if (sunshangxiang == NULL) return false;
         CardMoveStar move = data.value<CardMoveStar>();
-        if(move->from_place == Player::Equip){            
+        if(move->from_place == Player::PlaceEquip){            
             if(room->askForSkillInvoke(sunshangxiang, objectName())){
                 room->broadcastSkillInvoke(objectName());
                 sunshangxiang->drawCards(2);

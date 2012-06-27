@@ -6,26 +6,27 @@
 #include <QGraphicsItem>
 #include "QSanSelectableItem.h"
 #include <QMutex>
+#include <qvariant.h>
 #include "SkinBank.h"
 #include "TimedProgressBar.h"
 #include "magatamasItem.h"
-#include "roleComboBox.h"
+#include "rolecombobox.h"
 
-class GeneralCardContainer: public QSanSelectableItem
+class GeneralCardContainer: public QGraphicsObject
 {    
     Q_OBJECT
 public:
-    inline GeneralCardContainer(bool centerAsOrigin = false): QSanSelectableItem(centerAsOrigin) { _m_highestZ = 10000; }
-    inline GeneralCardContainer(QString filename, bool centerAsOrigin): QSanSelectableItem(filename, centerAsOrigin){ _m_highestZ = 10000; }
+    inline GeneralCardContainer() { _m_highestZ = 10000; }
     virtual QList<CardItem*> removeCardItems(const QList<int> &card_ids,  Player::Place place) = 0;
     virtual void addCardItems(QList<CardItem*> &card_items, Player::Place place);
 protected:
     // @return Whether the card items should be destroyed after animation
-    virtual bool _addCardItems(QList<CardItem*> &card_items, Player::Place place) = 0;
+    virtual bool _addCardItems(QList<CardItem*> &card_items, Player::Place toPlace) = 0;
     QList<CardItem*> _createCards(QList<int> card_ids);
     CardItem* _createCard(int card_id);    
     void _disperseCards(QList<CardItem*> &cards, QRectF fillRegion, Qt::Alignment align, bool useHomePos, bool keepOrder);
     void _playMoveCardsAnimation(QList<CardItem*> &cards, bool destroyCards);
+    int _m_highestZ;
 protected slots:
     virtual void onAnimationFinished();
 private slots:
@@ -33,7 +34,6 @@ private slots:
     void _destroyCard();
 private:
     static bool _horizontalPosLessThan(const CardItem* card1, const CardItem* card2);
-    int _m_highestZ;
     QList<CardItem*> _cardsToBeDestroyed;
     QMutex _mutex_cardsToBeDestroyed;    
 signals:
@@ -62,7 +62,9 @@ public:
     void repaintAll();
     virtual void killPlayer();
     virtual void revivePlayer();
+    virtual QGraphicsItem* getMouseClickReceiver() = 0;
 
+    inline void hookMouseEvents();
 public slots:
     void updateAvatar();    
     void updateSmallAvatar();
@@ -77,7 +79,25 @@ public slots:
     virtual void refresh();
 
 protected:
+    // overrider parent functions
+    virtual QVariant itemChange(GraphicsItemChange change, const QVariant &value);
+    virtual void mousePressEvent(QGraphicsSceneMouseEvent *event);
+    virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
+
+    // initialization of _m_layout is compulsory for children classes.
+    virtual QGraphicsItem* _getEquipParent() = 0;
+    virtual QGraphicsItem* _getDelayedTrickParent() = 0;
+    virtual QGraphicsItem* _getAvatarParent() = 0;
+    virtual QGraphicsItem* _getMarkParent() = 0;
+    virtual QGraphicsItem* _getPhaseParent() = 0;
+    virtual QGraphicsItem* _getRoleComboBoxParent() = 0;
+    virtual QGraphicsItem* _getPileParent() = 0;
+    virtual QGraphicsItem* _getFocusFrameParent() = 0;
+    virtual QGraphicsItem* _getProgressBarParent() = 0;
+    virtual QString getResourceKeyName() = 0;
+
     void _createRoleComboBox();
+    void _updateProgressBar(); // a dirty function used by the class itself only.
     void _paintPixmap(QGraphicsPixmapItem* &item, const QRect &rect, const QString &key);
     void _paintPixmap(QGraphicsPixmapItem* &item, const QRect &rect, const QString &key, QGraphicsItem* parent);
     void _paintPixmap(QGraphicsPixmapItem* &item, const QRect &rect, const QPixmap &pixmap);
@@ -95,17 +115,7 @@ protected:
     virtual void addDelayedTricks(QList<CardItem*> &judges);
     virtual QList<CardItem*> removeDelayedTricks(const QList<int> &cardIds);
     virtual void updateDelayedTricks();
-
-    // initialization of _m_layout is compulsory for children classes.
-    virtual QGraphicsItem* _getEquipParent() = 0;
-    virtual QGraphicsItem* _getDelayedTrickParent() = 0;
-    virtual QGraphicsItem* _getAvatarParent() = 0;
-    virtual QGraphicsItem* _getMarkParent() = 0;
-    virtual QGraphicsItem* _getPhaseParent() = 0;
-    virtual QGraphicsItem* _getRoleComboBoxParent() = 0;
-    virtual QGraphicsItem* _getPileParent() = 0;
-    virtual QString getResourceKeyName() = 0;
-
+    
     // This is a dirty but easy design, we require children class to call create controls after
     // everything specific to the children has been setup (such as the frames that we attach
     // the controls. Consider revise this in the future.
@@ -132,6 +142,7 @@ protected:
     QGraphicsPixmapItem *_m_saveMeIcon;
     QGraphicsPixmapItem *_m_phaseIcon;
     QGraphicsTextItem *_m_markItem;
+    QGraphicsPixmapItem *_m_selectedFrame;
     QMap<QString, QGraphicsProxyWidget*> _m_privatePiles;
 
     // The frame that is maintained by roomscene. Items in this area has positions
@@ -159,6 +170,9 @@ private:
     bool _startLaying();
     int _lastZ;
     bool _allZAdjusted;
+signals:
+    void selected_changed();
+    void enable_changed();
 };
 
 #endif

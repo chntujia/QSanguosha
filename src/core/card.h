@@ -102,6 +102,7 @@ public:
     virtual bool targetFixed() const;
     virtual bool targetsFeasible(const QList<const Player *> &targets, const Player *Self) const;
     virtual bool targetFilter(const QList<const Player *> &targets, const Player *to_select, const Player *Self) const;
+    virtual int targetFilterMultiple(const QList<const Player *> &targets, const Player *to_select, const Player *Self) const;
     virtual bool isAvailable(const Player *player) const;
     virtual const Card *validate(const CardUseStruct *card_use) const;
     virtual const Card *validateInResposing(ServerPlayer *user, bool *continuable) const;
@@ -111,7 +112,6 @@ public:
     bool willThrow() const;
     bool canJilei() const;
     bool hasPreAction() const;
-    bool asPindian() const;
 
     void setFlags(const QString &flag) const;
     bool hasFlag(const QString &flag) const;
@@ -145,7 +145,6 @@ protected:
     bool will_throw;
     bool can_jilei;
     bool has_preact;
-    bool as_pindian;
 
 private:
     Suit suit;

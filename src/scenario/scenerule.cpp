@@ -87,7 +87,7 @@ public:
         Room *room = effect.to->getRoom();
         int card_id = room->askForCardChosen(effect.from, effect.to, "hej", "scene_27_effect");
 
-        room->obtainCard(effect.from, card_id, room->getCardPlace(card_id) != Player::Hand);
+        room->obtainCard(effect.from, card_id, room->getCardPlace(card_id) != Player::PlaceHand);
     }
 };
 
@@ -157,7 +157,7 @@ bool SceneRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QV
                     prevp.prepend(prevp.takeLast());
                     for(int i = 0; i < prevp.count(); i++) {
                         if(cardToMove[i]) {
-                            room->moveCardTo(cardToMove[i], prevp[i], Player::Hand, false);
+                            room->moveCardTo(cardToMove[i], prevp[i], Player::PlaceHand, false);
                             room->getThread()->delay();
                         }
                     }
@@ -228,7 +228,7 @@ bool SceneRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QV
                     prevp.append(prevp.takeFirst());
                     for(int i = 0; i < prevp.count(); i++) {
                         if(cardToMove[i]) {
-                            room->moveCardTo(cardToMove[i], prevp[i], Player::Hand, false);
+                            room->moveCardTo(cardToMove[i], prevp[i], Player::PlaceHand, false);
                             room->getThread()->delay();
                         }
                     }
@@ -509,7 +509,7 @@ bool SceneRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QV
         }
 
         case 20:
-            if((damage.nature == DamageStruct::Thunder) && !damage.chain) {
+            if((damage.nature == DamageStruct::Thunder) && !damage.chain && !damage.transfer) {
                 log.type = "#Scene20Buff";
                 log.from = player;
                 log.to << damage.to;
@@ -523,7 +523,7 @@ bool SceneRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QV
             break;
 
         case 21:
-            if((damage.nature == DamageStruct::Fire) && !damage.chain) {
+            if((damage.nature == DamageStruct::Fire) && !damage.chain && !damage.transfer) {
                 log.type = "#Scene21Buff";
                 log.from = player;
                 log.to << damage.to;
@@ -537,7 +537,8 @@ bool SceneRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QV
             break;
 
         case 22:
-            if((damage.nature == DamageStruct::Thunder || damage.nature == DamageStruct::Fire) && !damage.chain) {
+            if((damage.nature == DamageStruct::Thunder || damage.nature == DamageStruct::Fire)
+                    && !damage.chain && !damage.transfer) {
                 log.type = "#Scene22Buff";
                 log.from = player;
                 log.to << damage.to;

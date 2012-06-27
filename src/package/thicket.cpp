@@ -214,7 +214,7 @@ public:
         DamageStruct damage = data.value<DamageStruct>();
         ServerPlayer *target = damage.to;
         if(damage.card && damage.card->inherits("Slash") && !zhurong->isKongcheng()
-            && !target->isKongcheng() && target != zhurong && !damage.chain){
+            && !target->isKongcheng() && target != zhurong && !damage.chain && !damage.transfer){
             Room *room = zhurong->getRoom();
             if(room->askForSkillInvoke(zhurong, objectName(), data)){
                 room->broadcastSkillInvoke(objectName(), 1);
@@ -230,7 +230,7 @@ public:
                 if(!target->isNude()){
                     int card_id = room->askForCardChosen(zhurong, target, "he", objectName());
                     CardMoveReason reason(CardMoveReason::S_REASON_EXTRACTION, zhurong->objectName());
-                    room->obtainCard(zhurong, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::Hand);
+                    room->obtainCard(zhurong, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::PlaceHand);
                 }
             }
         }
@@ -256,10 +256,7 @@ public:
 
                 for(i = 0; i < x; i++){
                     int card_id = room->drawCard();
-                    /* revive this after TopDrawPile works
-                    room->moveCardTo(Sanguosha->getCard(card_id), NULL, NULL, Player::TopDrawPile,
-                        CardMoveReason(CardMoveReason::S_REASON_TURNOVER, menghuo->objectName(), QString(), "zaiqi", QString()), true);  */
-                    room->moveCardTo(Sanguosha->getCard(card_id), NULL, menghuo, Player::Special,
+                    room->moveCardTo(Sanguosha->getCard(card_id), NULL, NULL, Player::PlaceTable,
                         CardMoveReason(CardMoveReason::S_REASON_TURNOVER, menghuo->objectName(), QString(), "zaiqi", QString()), true);
                     room->getThread()->delay();
 
@@ -308,7 +305,7 @@ public:
                   (use.card->getSubcards().length() == 1 &&
                   Sanguosha->getCard(use.card->getSubcards().first())->inherits("SavageAssault")))){
             if (player == NULL) return false;
-            if(room->getCardPlace(use.card->getEffectiveId()) == Player::DiscardPile){
+            if(room->getCardPlace(use.card->getEffectiveId()) == Player::PlaceTable){
                 // finding zhurong;
                 QList<ServerPlayer *> players = room->getAllPlayers();
                 foreach(ServerPlayer *p, players){
@@ -420,10 +417,10 @@ bool HaoshiCard::targetFilter(const QList<const Player *> &targets, const Player
     return to_select->getHandcardNum() == Self->getMark("haoshi");
 }
 
-void HaoshiCard::use(Room *room, ServerPlayer *, const QList<ServerPlayer *> &targets) const{
+void HaoshiCard::use(Room *room, ServerPlayer *source, const QList<ServerPlayer *> &targets) const{
     ServerPlayer *beggar = targets.first();
 
-    room->moveCardTo(this, beggar, Player::Hand, false);
+    room->moveCardTo(this, beggar, Player::PlaceHand, false);
     room->setEmotion(beggar, "draw-card");
 }
 
@@ -572,11 +569,11 @@ void DimengCard::use(Room *room, ServerPlayer *source, const QList<ServerPlayer 
     CardsMoveStruct move1;
     move1.card_ids = a->handCards();
     move1.to = b;
-    move1.to_place = Player::Hand;
+    move1.to_place = Player::PlaceHand;
     CardsMoveStruct move2;
     move2.card_ids = b->handCards();
     move2.to = a;
-    move2.to_place = Player::Hand;
+    move2.to_place = Player::PlaceHand;
     exchangeMove.push_back(move1);
     exchangeMove.push_back(move2);
     
@@ -767,7 +764,7 @@ public:
     }
 
     virtual bool isProhibited(const Player *from, const Player *to, const Card *card) const{
-        return card->inherits("TrickCard") && card->isBlack() && !card->inherits("Collateral");
+        return card->inherits("TrickCard") && card->isBlack();
     }
 };
 
@@ -927,7 +924,8 @@ public:
                 dongzhuos << p;
             }
         }
-
+        if(dongzhuos.empty())
+            return false;
         foreach(ServerPlayer *dongzhuo, dongzhuos){
             QVariant who = QVariant::fromValue(dongzhuo);
             if(player->askForSkillInvoke(objectName(), who)){

@@ -36,6 +36,19 @@ QString Slash::getSubtype() const{
 }
 
 void Slash::use(Room *room, ServerPlayer *source, const QList<ServerPlayer *> &targets) const{
+    if(source->getPhase() == Player::Play
+            && source->hasUsed("Slash")
+            && source->hasWeapon("crossbow"))
+        room->setEmotion(source,"weapon/crossbow");
+    else if(this->isVirtualCard() && this->skill_name == "spear")
+        room->setEmotion(source,"weapon/spear");
+    else if(targets.length()>1
+            && source->handCards().size() == 0
+            && source->hasWeapon("halberd"))
+        room->setEmotion(source,"weapon/halberd");
+    else if(this->isVirtualCard() && this->skill_name == "fan")
+        room->setEmotion(source,"weapon/fan");
+
     BasicCard::use(room, source, targets);
 
     if(source->hasFlag("drank")){
@@ -191,6 +204,7 @@ public:
             if(use.from->getGeneral()->isMale() != to->getGeneral()->isMale()
                 && use.card->inherits("Slash")){
                 if(use.from->askForSkillInvoke(objectName())){
+                    to->getRoom()->setEmotion(use.from,"weapon/double_sword");
                     bool draw_card = false;
 
                     if(to->isKongcheng())
@@ -224,13 +238,27 @@ DoubleSword::DoubleSword(Suit suit, int number)
 class QinggangSwordSkill: public WeaponSkill{
 public:
     QinggangSwordSkill():WeaponSkill("qinggang_sword"){
-        events << SlashEffect;
+        events << TargetConfirmed << Death;
     }
 
-    virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *, QVariant &data) const{
-        SlashEffectStruct effect = data.value<SlashEffectStruct>();
-        effect.to->addMark("qinggang");
-
+    virtual bool trigger(TriggerEvent event, Room* room, ServerPlayer *, QVariant &data) const{
+        if(event == TargetConfirmed){
+            CardUseStruct use = data.value<CardUseStruct>();
+            if(use.card->inherits("Slash")){
+                bool do_anim = false;
+                foreach(ServerPlayer *p, use.to){
+                    p->addMark("qinggang");
+                    if (p->getArmor()  || p->hasSkill("bazhen"))  do_anim = true;
+                }
+                if (do_anim){
+                    room->setEmotion(use.from, "weapon/qinggang_sword");
+                }
+            }
+        }
+        else{
+            foreach(ServerPlayer *p,room->getAlivePlayers())
+                p->setMark("qinggang", 0);
+        }
         return false;
     }
 };
@@ -256,6 +284,7 @@ public:
     virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *player, QVariant &data) const{
         SlashEffectStruct effect = data.value<SlashEffectStruct>();
 
+
         if(effect.to->hasSkill("kongcheng") && effect.to->isKongcheng())
             return false;
 
@@ -265,11 +294,13 @@ public:
             if(player->hasFlag("drank"))
                 room->setPlayerFlag(player, "-drank");
 
+            room->setEmotion(player,"weapon/blade");
             CardUseStruct use;
             use.card = card;
             use.from = player;
             use.to << effect.to;
             room->useCard(use, false);
+
         }
 
         return false;
@@ -310,9 +341,9 @@ public:
 
         Card::Suit suit = Card::NoSuit;
         if(first->isBlack() && second->isBlack())
-            suit = Card::Spade;
+            suit = Card::Club;
         else if(first->isRed() && second->isRed())
-            suit = Card::Heart;
+            suit = Card::Diamond;
 
         Slash *slash = new Slash(suit, 0);
         slash->setSkillName(objectName());
@@ -376,6 +407,8 @@ public:
 
         CardStar card = room->askForCard(player, "@axe", "@axe:" + effect.to->objectName(),data, CardDiscarded);
         if(card){
+            room->setEmotion(player,"weapon/axe");
+
             QList<int> card_ids = card->getSubcards();
             foreach(int card_id, card_ids){
                 LogMessage log;
@@ -424,7 +457,7 @@ public:
         DamageStruct damage = data.value<DamageStruct>();
 
         QStringList horses;
-        if(damage.card && damage.card->inherits("Slash") && !damage.chain){
+        if(damage.card && damage.card->inherits("Slash") && !damage.chain && !damage.transfer){
             if(damage.to->getDefensiveHorse())
                 horses << "dhorse";
             if(damage.to->getOffensiveHorse())
@@ -436,6 +469,8 @@ public:
             if (player == NULL) return false;
             if(!player->askForSkillInvoke(objectName(), data))
                 return false;
+
+            room->setEmotion(player,"weapon/kylin_bow");
 
             QString horse_type;
             if(horses.length() == 2)
@@ -493,10 +528,11 @@ public:
 
                 room->judge(judge);
                 if(judge.isGood()){
+                    room->setEmotion(player, "armor/eight_diagram");
                     Jink *jink = new Jink(Card::NoSuit, 0);
                     jink->setSkillName(objectName());
                     room->provide(jink);
-                    room->setEmotion(player, "good");
+                    //room->setEmotion(player, "good");
 
                     return true;
                 }else
@@ -595,7 +631,7 @@ SavageAssault::SavageAssault(Suit suit, int number)
 
 void SavageAssault::onEffect(const CardEffectStruct &effect) const{
     Room *room = effect.to->getRoom();
-    const Card *slash = room->askForCard(effect.to, "slash", "savage-assault-slash:" + effect.from->objectName());
+    const Card *slash = room->askForCard(effect.to, "slash", "savage-assault-slash:"+ effect.from->objectName());
     if(slash)
         room->setEmotion(effect.to, "killer");
     else{
@@ -632,8 +668,10 @@ ArcheryAttack::ArcheryAttack(Card::Suit suit, int number)
 void ArcheryAttack::onEffect(const CardEffectStruct &effect) const{
     Room *room = effect.to->getRoom();
     const Card *jink = room->askForCard(effect.to, "jink", "archery-attack-jink:" + effect.from->objectName());
-    if(jink)
-        room->setEmotion(effect.to, "jink");
+    if(jink){
+        if(jink->getSkillName() != "eight_diagram" && jink->getSkillName() != "bazhen")
+            room->setEmotion(effect.to, "jink");
+    }
     else{
         DamageStruct damage;
         damage.card = this;
@@ -689,7 +727,11 @@ bool Collateral::isAvailable(const Player *player) const{
 bool Collateral::targetFilter(const QList<const Player *> &targets, const Player *to_select, const Player *Self) const{
     if(!targets.isEmpty())
         return false;
-    return to_select->getWeapon() && to_select != Self;
+    foreach(const Player *p, to_select->getSiblings()){
+        if(to_select->getWeapon() && to_select != Self && to_select->distanceTo(p) <= to_select->getAttackRange())
+            return true;
+    }
+    return false;
 
 }
 
@@ -905,8 +947,8 @@ void Duel::onEffect(const CardEffectStruct &effect) const{
     ServerPlayer *second = effect.from;
     Room *room = first->getRoom();
 
-    room->setEmotion(first, "duel-a");
-    room->setEmotion(second, "duel-b");
+    room->setEmotion(first, "duel");
+    room->setEmotion(second, "duel");
 
     forever{
         if(second->hasFlag("WushuangTarget")){
@@ -968,7 +1010,7 @@ void Snatch::onEffect(const CardEffectStruct &effect) const{
     Room *room = effect.to->getRoom();
     int card_id = room->askForCardChosen(effect.from, effect.to, "hej", objectName());
     CardMoveReason reason(CardMoveReason::S_REASON_EXTRACTION, effect.from->objectName());
-    room->obtainCard(effect.from, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::Hand);
+    room->obtainCard(effect.from, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::PlaceHand);
 }
 
 Dismantlement::Dismantlement(Suit suit, int number)
@@ -1001,7 +1043,7 @@ void Dismantlement::onEffect(const CardEffectStruct &effect) const{
     reason.m_playerId = effect.from->objectName();
     reason.m_targetId = effect.to->objectName();
     room->moveCardTo(Sanguosha->getCard(card_id), NULL, NULL, Player::DiscardPile, reason);
-    // room->throwCard(card_id, room->getCardPlace(card_id) == Player::Judging ? NULL : effect.to);
+    // room->throwCard(card_id, room->getCardPlace(card_id) == Player::PlaceDelayedTrick ? NULL : effect.to);
 
     LogMessage log;
     log.type = "$Dismantlement";
@@ -1085,7 +1127,8 @@ public:
         DamageStruct damage = data.value<DamageStruct>();
 
         if(damage.card && damage.card->inherits("Slash") && !damage.to->isNude()
-            && !damage.chain && player->askForSkillInvoke("ice_sword", data)){
+            && !damage.chain && !damage.transfer && player->askForSkillInvoke("ice_sword", data)){
+            room->setEmotion(player,"weapon/ice_sword");
                 int card_id = room->askForCardChosen(player, damage.to, "he", "ice_sword");
                 CardMoveReason reason(CardMoveReason::S_REASON_DISMANTLE, damage.to->objectName());
                 reason.m_playerId = damage.from->objectName();
@@ -1129,6 +1172,8 @@ public:
             log.arg = objectName();
             log.arg2 = effect.slash->objectName();
             player->getRoom()->sendLog(log);
+
+            room->setEmotion(player, "armor/renwang_shield");
 
             return true;
         }else

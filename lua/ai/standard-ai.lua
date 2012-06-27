@@ -88,7 +88,7 @@ sgs.ai_skill_invoke.ganglie = function(self, data)
 	return not self:isFriend(data:toPlayer())
 end
 
-sgs.ai_skill_discard.ganglie = function(self, discard_num, optional, include_equip)
+sgs.ai_skill_discard.ganglie = function(self, discard_num, min_num, optional, include_equip)
 	local to_discard = {}
 	local cards = sgs.QList2Table(self.player:getHandcards())
 	local index = 0
@@ -472,12 +472,12 @@ sgs.zhaoyun_keep_value =
 }
 
 sgs.ai_skill_invoke.tieji = function(self, data)
-	local effect = data:toSlashEffect()
+	local target = data:toPlayer()
 	local zj = self.room:findPlayerBySkillName("guidao")
 	if zj and self:isEnemy(zj) and self:canRetrial(zj) then
 	    return false
 	else
-		return not self:isFriend(effect.to) 
+		return not self:isFriend(target) 
 	end 
 	--return not self:isFriend(effect.to) and (not effect.to:isKongcheng() or effect.to:getArmor())
 end
@@ -1203,9 +1203,9 @@ sgs.ai_card_intention.YihunCard = function(card, from, to)
 	end
 end
 
-sgs.ai_skill_invoke.bumie = true
+sgs.ai_skill_invoke.shihun = true
 
-sgs.ai_skill_playerchosen.bumie = function(self, targets)	
+sgs.ai_skill_playerchosen.shihun = function(self, targets)	
 	self:sort(self.enemies,"hp")
 	return self.enemies[1]
 end

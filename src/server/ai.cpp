@@ -221,7 +221,7 @@ bool TrustAI::askForSkillInvoke(const QString &, const QVariant &){
     return false;
 }
 
-QString TrustAI::askForChoice(const QString &skill_name, const QString &choice){
+QString TrustAI::askForChoice(const QString &skill_name, const QString &choice, const QVariant &){
     const Skill *skill = Sanguosha->getSkill(skill_name);
     if(skill){
         QString default_choice = skill->getDefaultChoice(self);
@@ -233,7 +233,7 @@ QString TrustAI::askForChoice(const QString &skill_name, const QString &choice){
     return choices.at(qrand() % choices.length());
 }
 
-QList<int> TrustAI::askForDiscard(const QString &, int discard_num, bool optional, bool include_equip){
+QList<int> TrustAI::askForDiscard(const QString &, int discard_num, int min_num, bool optional, bool include_equip){
     QList<int> to_discard;
 
     if(optional)
@@ -416,26 +416,27 @@ QString LuaAI::askForUseCard(const QString &pattern, const QString &prompt){
     return result;
 }
 
-QList<int> LuaAI::askForDiscard(const QString &reason, int discard_num, bool optional, bool include_equip){
+QList<int> LuaAI::askForDiscard(const QString &reason, int discard_num, int min_num, bool optional, bool include_equip){
     lua_State *L = room->getLuaState();
 
     pushCallback(L, __FUNCTION__);
     lua_pushstring(L, reason.toAscii());
     lua_pushinteger(L, discard_num);
+    lua_pushinteger(L, min_num);
     lua_pushboolean(L, optional);
     lua_pushboolean(L, include_equip);
 
-    int error = lua_pcall(L, 5, 1, 0);
+    int error = lua_pcall(L, 6, 1, 0);
     if(error){
         reportError(L);
-        return TrustAI::askForDiscard(reason, discard_num, optional, include_equip);
+        return TrustAI::askForDiscard(reason, discard_num, min_num, optional, include_equip);
     }
 
     QList<int> result;
     if(getTable(L, result))
         return result;
     else
-        return TrustAI::askForDiscard(reason, discard_num, optional, include_equip);
+        return TrustAI::askForDiscard(reason, discard_num, min_num, optional, include_equip);
 }
 
 bool LuaAI::getTable(lua_State *L, QList<int> &table){
@@ -457,24 +458,6 @@ bool LuaAI::getTable(lua_State *L, QList<int> &table){
     return true;
 }
 
-QString LuaAI::askForChoice(const QString &skill_name, const QString &choices){
-
-    lua_State *L = room->getLuaState();
-
-    pushCallback(L, __FUNCTION__);
-    lua_pushstring(L, skill_name.toAscii());
-    lua_pushstring(L, choices.toAscii());
-
-    int error = lua_pcall(L, 3, 1, 0);
-    const char *result = lua_tostring(L, -1);
-    lua_pop(L, 1);
-    if(error){
-        room->output(result);
-        return TrustAI::askForChoice(skill_name, choices);
-    }
-
-    return result;
-}
 
 int LuaAI::askForAG(const QList<int> &card_ids, bool refusable, const QString &reason){
     lua_State *L = room->getLuaState();

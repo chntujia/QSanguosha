@@ -670,7 +670,7 @@ sgs.ai_use_priority.ArcheryAttack = 3.5
 sgs.ai_use_value.SavageAssault = 3.9
 sgs.ai_use_priority.SavageAssault = 3.5
 
-sgs.ai_skill_cardask.aoe = function(self, data, pattern, target, target2, name)
+sgs.ai_skill_cardask.aoe = function(self, data, pattern, target, name)
 	if sgs.ai_skill_cardask.nullfilter(self, data, pattern, target) then return "." end
 	if not self:damageIsEffective(nil, nil, target) then return "." end
 	local aoe = sgs.Sanguosha:cloneCard(name, sgs.Card_NoSuit, 0)
@@ -681,12 +681,12 @@ sgs.ai_skill_cardask.aoe = function(self, data, pattern, target, target2, name)
 		(self.player:getHp()>1 or self:getAllPeachNum()>0) and not self.player:containsTrick("indulgence") then return "." end
 end
 
-sgs.ai_skill_cardask["savage-assault-slash"] = function(self, data, pattern, target, target2)
-	return sgs.ai_skill_cardask.aoe(self, data, pattern, target, target2, "savage_assault")
+sgs.ai_skill_cardask["savage-assault-slash"] = function(self, data, pattern, target)
+	return sgs.ai_skill_cardask.aoe(self, data, pattern, target, "savage_assault")
 end
 
 sgs.ai_skill_cardask["archery-attack-jink"] = function(self, data, pattern, target)
-	return sgs.ai_skill_cardask.aoe(self, data, pattern, target, target2, "archery_attack")
+	return sgs.ai_skill_cardask.aoe(self, data, pattern, target, "archery_attack")
 end
 
 sgs.ai_keep_value.Nullification = 3
@@ -743,6 +743,7 @@ end
 
 function SmartAI:useCardDuel(duel, use)
 	if self.player:hasSkill("wuyan") then return end
+	if self.player:hasSkill("noswuyan") then return end
 	self:sort(self.enemies,"handcard")
 	local enemies = self:exclude(self.enemies, duel)
 	local friends = self:exclude(self.friends_noself, duel)
@@ -1159,7 +1160,7 @@ sgs.ai_skill_playerchosen.collateral = function(self, targets)
 	targets = sgs.QList2Table(targets)
 	self:sort(targets,"defense")
 	for _, enemy in ipairs(targets) do
-		if self:isEnemy(friend) then
+		if self:isEnemy(enemy) then
 			return enemy
 		end
 	end
@@ -1178,8 +1179,8 @@ end
 sgs.ai_use_value.Collateral = 8.8
 sgs.ai_use_priority.Collateral = 2.75
 
-sgs.ai_card_intention.Collateral = function(card, from, tos)
-	assert(#tos == 1)
+sgs.ai_card_intention.Collateral = sgs.ai_card_intention.FireAttack
+--[[	assert(#tos == 1)
 	if tos[2]:objectName() == from:objectName() then
 		sgs.updateIntention(from, tos[1], 80)
 	elseif sgs.compareRoleEvaluation(tos[1], "rebel", "loyalist") == sgs.compareRoleEvaluation(tos[2], "rebel", "loyalist") then
@@ -1190,7 +1191,7 @@ sgs.ai_card_intention.Collateral = function(card, from, tos)
 		sgs.updateIntention(from, tos[1], 80)
 	end
 	sgs.ai_collateral = false
-end
+end]]
 
 sgs.dynamic_value.control_card.Collateral = true
 

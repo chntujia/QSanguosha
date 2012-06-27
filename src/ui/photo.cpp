@@ -6,7 +6,7 @@
 #include "standard.h"
 #include "client.h"
 #include "playercarddialog.h"
-#include "roleComboBox.h"
+#include "rolecombobox.h"
 #include "SkinBank.h"
 
 #include <QPainter>
@@ -43,15 +43,21 @@ Photo::Photo(): PlayerCardContainer()
     _m_onlineStatusItem = NULL;
     _m_layout = &G_PHOTO_LAYOUT;
     setAcceptHoverEvents(true);
+    setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
     _paintPixmap(_m_mainFrame, G_PHOTO_LAYOUT.m_mainFrameArea, QSanRoomSkin::S_SKIN_KEY_MAINFRAME);
     translate(-G_PHOTO_LAYOUT.m_normalWidth / 2, -G_PHOTO_LAYOUT.m_normalHeight / 2);
     _m_skillNameItem = new QGraphicsPixmapItem(this);
     
-    order_item = NULL;
+    order       = 0;
+    order_limit = 1;
+    order_item  = NULL;
     emotion_item = new QGraphicsPixmapItem(this);
     emotion_item->moveBy(10, 0);
 
     _createControls();
+
+    canReset = 1;
+    connect(this,SIGNAL(selected_changed()),this,SLOT(resetOrder()));
 }
 
 void Photo::refresh()
@@ -62,12 +68,15 @@ void Photo::refresh()
     if(!state_str.isEmpty() && state_str != "online") {
         QRect rect = G_PHOTO_LAYOUT.m_onlineStatusArea;
         QImage image(rect.size(), QImage::Format_ARGB32);
-        image.fill(G_PHOTO_LAYOUT.m_onlineStatusBgColor);
+        image.fill(Qt::transparent);
         QPainter painter(&image);
+        painter.fillRect(QRect(0, 0, rect.width(), rect.height()),
+                         G_PHOTO_LAYOUT.m_onlineStatusBgColor);
         G_PHOTO_LAYOUT.m_onlineStatusFont.paintText(&painter, QRect(QPoint(0, 0), rect.size()),
                                                     Qt::AlignCenter,
                                                     Sanguosha->translate(state_str));
-        _paintPixmap(_m_onlineStatusItem, rect, QPixmap::fromImage(image), this);
+        QPixmap pixmap = QPixmap::fromImage(image);
+        _paintPixmap(_m_onlineStatusItem, rect, pixmap, this);
         _layBetween(_m_onlineStatusItem, _m_mainFrame, _m_chainIcon);
     }
 }
@@ -77,15 +86,20 @@ QRectF Photo::boundingRect() const
     return QRect(0, 0, G_PHOTO_LAYOUT.m_normalWidth, G_PHOTO_LAYOUT.m_normalHeight);
 }
 
-void Photo::setOrder(int order){
+void Photo::setOrderLimit(int order_limit)
+{
+    this->order_limit = order_limit;
+}
+
+void Photo::setOrder(){
     QPixmap pixmap(QString("image/system/number/%1.png").arg(order));
     if(order_item)
         order_item->setPixmap(pixmap);
     else{
         order_item = new QGraphicsPixmapItem(pixmap, this);
-        order_item->setVisible(ServerInfo.EnableSame);
         order_item->moveBy(15, 0);
     }
+    order_item->setVisible(order>1);
 }
 
 void Photo::_adjustComponentZValues()
@@ -172,17 +186,18 @@ void Photo::speak(const QString &content)
 QList<CardItem*> Photo::removeCardItems(const QList<int> &card_ids, Player::Place place)
 {
     QList<CardItem*> result;    
-    if(place == Player::Hand || place == Player::Special){
+    if(place == Player::PlaceHand || place == Player::PlaceSpecial){
          result = _createCards(card_ids);
-    }else if(place == Player::Equip){
+         updateHandcardNum();
+    }else if(place == Player::PlaceEquip){
         result = removeEquips(card_ids);
-    }else if(place == Player::Judging){
+    }else if(place == Player::PlaceDelayedTrick){
         result = removeDelayedTricks(card_ids);
     }
 
     // if it is just one card from equip or judge area, we'd like to keep them
     // to start from the equip/trick icon.
-    if (result.size() > 1 || (place != Player::Equip && place != Player::Judge))
+    if (result.size() > 1 || (place != Player::PlaceEquip && place != Player::PlaceDelayedTrick))
         _disperseCards(result, G_PHOTO_LAYOUT.m_cardMoveRegion, Qt::AlignCenter, true, false);
     
     update();
@@ -196,17 +211,17 @@ bool Photo::_addCardItems(QList<CardItem*> &card_items, Player::Place place)
     bool destroy = true;
     foreach (CardItem* card_item, card_items)
         card_item->setHomeOpacity(homeOpacity);
-    if (place == Player::Equip)
+    if (place == Player::PlaceEquip)
     {
         addEquips(card_items);
         destroy = false;
     }
-    else if (place == Player::Judging)
+    else if (place == Player::PlaceDelayedTrick)
     {
         addDelayedTricks(card_items);
         destroy = false;
     }
-    else if (place == Player::Hand)
+    else if (place == Player::PlaceHand)
     {
         updateHandcardNum();
     }
@@ -214,7 +229,7 @@ bool Photo::_addCardItems(QList<CardItem*> &card_items, Player::Place place)
 }
 
 void Photo::setFrame(FrameType type){
-    if (type == NoFrame)
+    if (type == S_FRAME_NO_FRAME)
     {
         if (_m_focusFrame)
             _m_focusFrame->hide();
@@ -233,24 +248,48 @@ void Photo::setFrame(FrameType type){
 void Photo::updatePhase(){
     PlayerCardContainer::updatePhase();
     if(m_player->getPhase() != Player::NotActive)
-        setFrame(Playing);
+        setFrame(S_FRAME_PLAYING);
     else
-        setFrame(NoFrame);
-}
-
-static bool CompareByNumber(const Card *card1, const Card *card2){
-    return card1->getNumber() < card2->getNumber();
+        setFrame(S_FRAME_NO_FRAME);
 }
 
 void Photo::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget){
-
+    painter->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
 }
 
-QVariant Photo::itemChange(GraphicsItemChange change, const QVariant &value) {
+QGraphicsItem* Photo::getMouseClickReceiver()  
+{
+    return this; 
+}
+
+QVariant Photo::itemChange(GraphicsItemChange change, const QVariant &value)
+{
+    //the following code doesn't make much sense
+    //order_item will be used as a mark on multi-selecting a player
+    /*
     if(change == ItemFlagsHaveChanged){
         if(!ServerInfo.EnableSame)
             order_item->setVisible(flags() & ItemIsSelectable);
     }
+    */
+    return PlayerCardContainer::itemChange(change, value);
+}
 
-    return QSanSelectableItem::itemChange(change, value);
+void Photo::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
+{
+    if(event->button() == Qt::LeftButton && this->isSelected())
+    {
+        order++;
+        if(order>order_limit)setSelected(false);
+        else
+        {
+            canReset = 0;
+            emit selected_changed();
+            canReset = 1;
+            setOrder();
+        }
+        return;
+    }else setSelected(false);
+
+    PlayerCardContainer::mouseReleaseEvent(event);
 }

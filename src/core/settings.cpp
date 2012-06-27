@@ -38,7 +38,7 @@ Settings::Settings()
 
 void Settings::init(){
     if(!qApp->arguments().contains("-server")){
-        QString font_path = value("DefaultFontPath", "font/font.ttf").toString();
+        QString font_path = value("DefaultFontPath", "font/simli.ttf").toString();
         int font_id = QFontDatabase::addApplicationFont(font_path);
         if(font_id!=-1){
             QString font_family = QFontDatabase::applicationFontFamilies(font_id).first();
@@ -69,7 +69,7 @@ void Settings::init(){
                 << "disaster" << "god" << "YJCM" << "yitian_cards" << "test"
                 << "sp" << "sp_cards" << "BGM" << "YJCM2012" << "Special3v3"
                 << "New3v3Card" << "joy" << "joy_equip" << "hegemony_card" 
-				<< "hegemony" << "ling";
+                << "hegemony" << "ling";
 
         setValue("BanPackages", banlist);
     }

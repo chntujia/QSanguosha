@@ -32,6 +32,9 @@ public:
         if(card == NULL || !card->isBlack())
             return false;
 
+        //@todo: askForUseCard combines asking and using the card.
+        //animating weapon effect should happen in-between.
+        //we should come back after the askFor methods are restructured.
         room->askForUseCard(player, "slash", "@moon-spear-slash");
 
         return false;
@@ -123,6 +126,7 @@ void NosJujianCard::onEffect(const CardEffectStruct &effect) const{
     int n = subcardsLength();
     effect.to->drawCards(n);
     Room *room = effect.from->getRoom();
+    room->throwCard(this, effect.from);
     room->broadcastSkillInvoke("jujian");
 
     if(n == 3){
@@ -243,7 +247,7 @@ void NosXuanhuoCard::onEffect(const CardEffectStruct &effect) const{
     room->broadcastSkillInvoke("xuanhuo");
     int card_id = room->askForCardChosen(effect.from, effect.to, "he", objectName());
     CardMoveReason reason(CardMoveReason::S_REASON_EXTRACTION, effect.from->objectName());
-    room->obtainCard(effect.from, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::Hand);
+    room->obtainCard(effect.from, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::PlaceHand);
 
     QList<ServerPlayer *> targets = room->getOtherPlayers(effect.to);
     ServerPlayer *target = room->askForPlayerChosen(effect.from, targets, objectName());
@@ -287,7 +291,7 @@ public:
     virtual bool trigger(TriggerEvent event, Room* room, ServerPlayer *lingtong, QVariant &data) const{
         if(event == CardLostOneTime){
             CardsMoveOneTimeStar move = data.value<CardsMoveOneTimeStar>();
-            if (move->from_places.contains(Player::Equip))
+            if (move->from_places.contains(Player::PlaceEquip))
             {
                 Room *room = lingtong->getRoom();
 

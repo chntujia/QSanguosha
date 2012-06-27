@@ -11,7 +11,6 @@ QuhuCard::QuhuCard(){
     once = true;
     mute = true;
     will_throw = false;
-    as_pindian = true;
 }
 
 bool QuhuCard::targetFilter(const QList<const Player *> &targets, const Player *to_select, const Player *Self) const{
@@ -157,8 +156,7 @@ bool QiangxiCard::targetFilter(const QList<const Player *> &targets, const Playe
     if(!targets.isEmpty())
         return false;
 
-    if(!subcards.isEmpty() && Self->getWeapon() == Sanguosha->getCard(subcards.first())
-        && !Self->hasFlag("tianyi_success"))
+    if(!subcards.isEmpty() && Self->getWeapon() == Sanguosha->getCard(subcards.first()))
         return Self->distanceTo(to_select) <= 1;
 
     return Self->inMyAttackRange(to_select);
@@ -166,6 +164,7 @@ bool QiangxiCard::targetFilter(const QList<const Player *> &targets, const Playe
 
 void QiangxiCard::onEffect(const CardEffectStruct &effect) const{
     Room *room = effect.to->getRoom();
+    room->throwCard(this, effect.from);
 
     if(subcards.isEmpty())
         room->loseHp(effect.from);
@@ -302,6 +301,7 @@ public:
                 if(shuangxiong->askForSkillInvoke(objectName())){
                     shuangxiong->setFlags("shuangxiong");
 
+                    room->broadcastSkillInvoke("shuangxiong");
                     JudgeStruct judge;
                     judge.pattern = QRegExp("(.*)");
                     judge.good = true;
@@ -439,7 +439,8 @@ public:
     }
 
     virtual bool triggerable(const ServerPlayer *target) const{
-        return TriggerSkill::triggerable(target) && !target->getArmor() && target->getMark("qinggang") == 0;
+        return TriggerSkill::triggerable(target) && !target->getArmor()
+                && !target->hasFlag("wuqian") && target->getMark("qinggang") == 0;
     }
 
     virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *wolong, QVariant &data) const{
@@ -458,10 +459,11 @@ public:
             room->judge(judge);
 
             if(judge.isGood()){
+                room->setEmotion(wolong, "armor/eight_diagram");
                 Jink *jink = new Jink(Card::NoSuit, 0);
                 jink->setSkillName(objectName());
                 room->provide(jink);
-                room->setEmotion(wolong, "good");
+                //room->setEmotion(wolong, "good");
                 return true;
             }else
                 room->setEmotion(wolong, "bad");
@@ -502,7 +504,6 @@ public:
 TianyiCard::TianyiCard(){
     once = true;
     will_throw = false;
-    as_pindian = true;
 }
 
 bool TianyiCard::targetFilter(const QList<const Player *> &targets, const Player *to_select, const Player *Self) const{

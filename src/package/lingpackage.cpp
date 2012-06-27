@@ -9,11 +9,7 @@
 
 LuoyiCard::LuoyiCard(){
     once = true;
-    will_throw = true;
-}
-
-bool LuoyiCard::targetFilter(const QList<const Player *> &targets, const Player *to_select, const Player *Self) const{
-    return targets.isEmpty() && to_select == Self ;
+    target_fixed = true;
 }
 
 void LuoyiCard::use(Room *room, ServerPlayer *source, const QList<ServerPlayer *> &) const{
@@ -83,9 +79,9 @@ public:
     }
 };
 
-class Zhongyi: public TriggerSkill{
+class Yishi: public TriggerSkill{
 public:
-    Zhongyi():TriggerSkill("zhongyi"){
+    Yishi():TriggerSkill("yishi"){
         events << DamageCaused;
     }
 
@@ -93,17 +89,23 @@ public:
         DamageStruct damage = data.value<DamageStruct>();
 
         if(damage.card && damage.card->inherits("Slash") && damage.card->getSuit() == Card::Heart &&
-           !damage.chain && !damage.to->isAllNude() && player->askForSkillInvoke(objectName(), data)){
+           !damage.chain && !damage.transfer && !damage.to->isAllNude() && player->askForSkillInvoke(objectName(), data)){
 
             LogMessage log;
-            log.type = "#Zhongyi";
+            log.type = "#Yishi";
             log.from = player;
             log.arg = objectName();
             log.to << damage.to;
             room->sendLog(log);
             int card_id = room->askForCardChosen(player, damage.to, "hej", objectName());
+            if(room->getCardPlace(card_id) == Player::PlaceDelayedTrick)
+                room->broadcastSkillInvoke("yishi", 1);
+            else if(room->getCardPlace(card_id) == Player::PlaceEquip)
+                room->broadcastSkillInvoke("yishi", 2);
+            else
+                room->broadcastSkillInvoke("yishi", 3);
             CardMoveReason reason(CardMoveReason::S_REASON_EXTRACTION, player->objectName());
-            room->obtainCard(player, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::Hand);
+            room->obtainCard(player, Sanguosha->getCard(card_id), reason, room->getCardPlace(card_id) != Player::PlaceHand);
             return true;
         }
         return false;
@@ -119,6 +121,7 @@ public:
         Room *room = gongsun->getRoom();
         if(gongsun->getPhase() == Player::Finish && gongsun->askForSkillInvoke(objectName())){
             gongsun->drawCards(2);
+			room->broadcastSkillInvoke("zhulou", qrand() % 2 + 1);
             QString choice = room->askForChoice(gongsun, "zhulou", "throw+losehp");
             if(choice == "losehp" || !room->askForCard(gongsun, ".Weapon", "@zhulou-discard", QVariant(), CardDiscarded))
                 room->loseHp(gongsun);
@@ -134,7 +137,7 @@ public:
     }
 
     virtual int getCorrect(const Player *from, const Player *to) const{
-        if(from->hasSkill(objectName()) && !from->loseDistanceSkills())
+        if(from->hasSkill(objectName()))
             return -from->getLostHp();
         else
             return 0;
@@ -154,7 +157,7 @@ public:
                 target->drawCards(2+target->getLostHp());
                 target->turnOver();
 
-                room->broadcastSkillInvoke(objectName());
+                room->broadcastSkillInvoke("jushou");
             }
         }
 
@@ -174,7 +177,7 @@ public:
         QVariant source = QVariant::fromValue(from);
 
         if(from && from->isAlive() && room->askForSkillInvoke(xiahou, "ganglie", source)){
-            room->broadcastSkillInvoke(objectName());
+            room->broadcastSkillInvoke("ganglie");
 
             JudgeStruct judge;
             judge.pattern = QRegExp("(.*):(heart):(.*)");
@@ -214,16 +217,18 @@ LingPackage::LingPackage()
     neo_xuchu->addSkill("#luoyi");
 
     General * neo_zhouyu = new General(this, "neo_zhouyu", "wu", 3);
-    neo_zhouyu->addSkill(new NeoFanjian);
     neo_zhouyu->addSkill("yingzi");
+    neo_zhouyu->addSkill(new NeoFanjian);
+
 
     General * neo_guanyu = new General(this, "neo_guanyu", "shu");
-    neo_guanyu->addSkill(new Zhongyi);
     neo_guanyu->addSkill("wusheng");
+    neo_guanyu->addSkill(new Yishi);
 
     General * neo_gongsunzan = new General(this, "neo_gongsunzan", "qun");
-    neo_gongsunzan->addSkill(new Zhulou);
     neo_gongsunzan->addSkill("yicong");
+    neo_gongsunzan->addSkill(new Zhulou);
+
 
     General * neo_zhangfei = new General(this, "neo_zhangfei", "shu");
     neo_zhangfei->addSkill("paoxiao");
@@ -244,39 +249,3 @@ LingPackage::LingPackage()
 }
 
 ADD_PACKAGE(Ling)
-
-        class MingshiEX: public TriggerSkill{
-        public:
-            MingshiEX():TriggerSkill("exmingshi"){
-                events << DamageInflicted;
-                frequency = Compulsory;
-            }
-
-            virtual bool trigger(TriggerEvent , Room *room, ServerPlayer *player, QVariant &data) const{
-                DamageStruct damage = data.value<DamageStruct>();
-                if(damage.from && damage.from->getEquips().length() <= damage.to->getEquips().length()){
-                        LogMessage log;
-                        log.type = "#Mingshi";
-                        log.from = player;
-                        log.arg = QString::number(damage.damage);
-                        log.arg2 = objectName();
-                        room->sendLog(log);
-
-                        damage.damage--;
-                        if(damage.damage < 1)
-                            return true;
-                        data = QVariant::fromValue(damage);
-                }
-                return false;
-            }
-        };
-
-        TestHegePackage::TestHegePackage()
-            :Package("testhegemony")
-            {
-                General *kongwenju = new General(this, "kongwenju", "qun", 3);
-                kongwenju->addSkill(new MingshiEX);
-                kongwenju->addSkill("lirang");
-            }
-
-            ADD_PACKAGE(TestHege)

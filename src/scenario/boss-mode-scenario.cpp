@@ -26,7 +26,7 @@ public:
                 if(target->getCards("he").length() == 0)
                     continue;
                 int card_id = room->askForCardChosen(player, target, "he", objectName());
-                room->obtainCard(player, card_id, room->getCardPlace(card_id) != Player::Hand);
+                room->obtainCard(player, card_id, room->getCardPlace(card_id) != Player::PlaceHand);
             }
             return true;
         }
@@ -198,7 +198,7 @@ public:
 
             QList<ServerPlayer *> players = room->getAllPlayers();
             foreach(ServerPlayer *player, players){
-                player->removeMark("qinggang");
+                player->setMark("qinggang", 0);
             }
         }
         else{

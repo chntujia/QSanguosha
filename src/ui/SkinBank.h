@@ -30,6 +30,39 @@ private:
 class IQSanComponentSkin // interface class
 {
 public:
+    class QSanSimpleTextFont {
+    public:
+        int* m_fontFace;
+        QSize m_fontSize;
+        int m_spacing;
+        QColor m_color;
+        bool m_vertical;
+        bool tryParse(Json::Value arg);
+        void paintText(QPainter* painter, QRect pos, Qt::Alignment align,
+                       const QString &text) const;
+        // this function's prototype is confusing. It will CLEAR ALL contents on the
+        // QGraphicsPixmapItem passed in and then start drawing.
+        void paintText(QGraphicsPixmapItem* item, QRect pos, 
+                       Qt::Alignment align, const QString &text) const;
+    protected:
+        static QHash<QString, int*> _m_fontBank;
+    };
+
+    class QSanShadowTextFont : QSanSimpleTextFont
+    {
+    public:
+        int m_shadowRadius;
+        double m_shadowDecadeFactor;
+        QPoint m_shadowOffset;
+        QColor m_shadowColor;
+        bool tryParse(Json::Value arg);
+        void paintText(QPainter* painter, QRect pos, Qt::Alignment align,
+                       const QString &text) const;        
+        // this function's prototype is confusing. It will CLEAR ALL contents on the
+        // QGraphicsPixmapItem passed in and then start drawing.
+        void paintText(QGraphicsPixmapItem* item, QRect pos, Qt::Alignment align,
+                       const QString &text) const;
+    };
     class AnchoredRect
     {
     public:
@@ -70,38 +103,6 @@ protected:
 class QSanRoomSkin : public IQSanComponentSkin
 {
 public:
-    // @todo: move this to IQSanComponentSkin
-    class QSanSimpleTextFont {
-    public:
-        QFont m_font;
-        QPen m_foregroundPen;
-        bool m_vertical;
-        bool tryParse(Json::Value arg);
-        void paintText(QPainter* painter, QRect pos, Qt::AlignmentFlag align,
-                       const QString &text) const;
-        // this function's prototype is confusing. It will CLEAR ALL contents on the
-        // QGraphicsPixmapItem passed in and then start drawing.
-        void paintText(QGraphicsPixmapItem* item, QRect pos, 
-                       Qt::AlignmentFlag align, const QString &text) const;
-    };
-
-    class QSanShadowTextFont : QSanSimpleTextFont
-    {
-    public:
-        int m_shadowRadius;
-        double m_shadowDecadeFactor;
-        QPoint m_shadowOffset;
-        QColor m_shadowColor;
-        bool tryParse(Json::Value arg);
-        void paintText(QPainter* painter, QRect pos, Qt::AlignmentFlag align,
-                       const QString &text) const;        
-        // this function's prototype is confusing. It will CLEAR ALL contents on the
-        // QGraphicsPixmapItem passed in and then start drawing.
-        void paintText(QGraphicsPixmapItem* item, QRect pos, Qt::AlignmentFlag align,
-                       const QString &text) const;
-    };
-
-
     struct RoomLayout {
         int m_scenePadding;
         int m_roleBoxHeight;
@@ -158,7 +159,7 @@ public:
         
         // progress bar and other controls
         bool m_isProgressBarHorizontal;
-        QRect m_progressBarArea;
+        AnchoredRect m_progressBarArea;
         QSize m_magatamaSize;
         bool m_magatamasHorizontal;
         bool m_magatamasBgVisible;
@@ -239,17 +240,21 @@ public:
     const CommonLayout& getCommonLayout() const;
     const DashboardLayout& getDashboardLayout() const;
     
-    QPixmap getButtonPixmap(const QString &buttonName, QSanButton::ButtonState state) const;
+    // @todo: these two functions are currently only used to generate HTML when prompt whether to
+    // use Nullification. Get rid of them in the future.
     QString getCardMainPixmapPath(const QString &cardName) const;
+    QString getGeneralPixmapPath(const QString &generalName, GeneralIconSize size) const;
+
+    QPixmap getButtonPixmap(const QString &buttonName, QSanButton::ButtonState state) const;
     QPixmap getCardMainPixmap(const QString &cardName) const;
     QPixmap getCardSuitPixmap(Card::Suit suit) const;
     QPixmap getCardNumberPixmap(int point, bool isBlack) const;
     QPixmap getCardJudgeIconPixmap(const QString &judgeName) const;
     QPixmap getCardFramePixmap(const QString &frameType) const;
     QPixmap getCardAvatarPixmap(const QString &generalName) const;
-    QString getGeneralPixmapPath(const QString &generalName, GeneralIconSize size) const;
     QPixmap getGeneralPixmap(const QString &generalName, GeneralIconSize size) const;
     QString getPlayerAudioEffectPath(const QString &eventName, bool isMale, int index = -1) const;
+    QPixmap getProgressBarPixmap(int percentile) const;
 
     // static consts
     // main keys
@@ -276,6 +281,7 @@ public:
     static const char* S_SKIN_KEY_BLANK_GENERAL;
     static const char* S_SKIN_KEY_CHAIN;
     static const char* S_SKIN_KEY_PHASE;
+    static const char* S_SKIN_KEY_SELECTED_FRAME;
     static const char* S_SKIN_KEY_FOCUS_FRAME;
     static const char* S_SKIN_KEY_SAVE_ME_ICON;
     static const char* S_SKIN_KEY_ACTIONED_ICON;
@@ -295,6 +301,7 @@ public:
     static const char* S_SKIN_KEY_PLAYER_AUDIO_EFFECT;
     static const char* S_SKIN_KEY_SYSTEM_AUDIO_EFFECT;
     static const char* S_SKIN_KEY_EQUIP_ICON;
+    static const char* S_SKIN_KEY_PROGRESS_BAR_IMAGE;
 
     // The following ones are to be moved to lobby skin later
     static const char* S_SKIN_KEY_READY_ICON;

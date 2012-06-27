@@ -254,7 +254,7 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
                         targetfix--;
                 }
                 if(card_use.from && !card_use.to.empty()){
-                    foreach(ServerPlayer *p, room->getAlivePlayers()){
+                    foreach(ServerPlayer *p, room->getAllPlayers()){
                         thread->trigger(TargetConfirmed, room, p, data);
                     }
                 }
@@ -272,6 +272,9 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
         }
     case CardFinished: {
             CardUseStruct use = data.value<CardUseStruct>();
+            foreach(ServerPlayer *p, use.to)
+                if(p->getMark("qinggang") > 0)
+                    p->setMark("qinggang", 0);
             room->clearCardFlag(use.card);
 
             break;
@@ -398,45 +401,46 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
             if(player->getHp() <= 0){
                 room->enterDying(player, &damage);
             }
+            bool chained = player->isChained();
+            if(!chained)
+                break;
 
+            if(player->isChained() && damage.nature != DamageStruct::Normal){
+                room->setPlayerProperty(player, "chained", false);
+                room->setPlayerFlag(player, "chained");
+
+                LogMessage log;
+                log.type = "#IronChainDamage";
+                log.from = player;
+                room->sendLog(log);
+            }
             break;
         }
 
     case DamageComplete:{
+            DamageStruct damage = data.value<DamageStruct>();
             if(room->getMode() == "02_1v1" && player->isDead()){
                 QString new_general = player->tag["1v1ChangeGeneral"].toString();
                 if(!new_general.isEmpty())
                     changeGeneral1v1(player);
             }
-
-            bool chained = player->isChained();
-            if(!chained)
-                break;
-
-            DamageStruct damage = data.value<DamageStruct>();
-            if(damage.nature != DamageStruct::Normal){
-                room->setPlayerProperty(player, "chained", false);
-
+            if(player->hasFlag("chained")){
+                room->setPlayerFlag(player, "-chained");
                 // iron chain effect
-                QList<ServerPlayer *> chained_players = room->getAlivePlayers();
-                foreach(ServerPlayer *chained_player, chained_players){
-                    if(chained_player->isChained()){
-                        room->setPlayerProperty(chained_player, "chained", false);
+                if(!damage.chain){
+                    QList<ServerPlayer *> chained_players = room->getAllPlayers();
+                    foreach(ServerPlayer *chained_player, chained_players){
+                        if(chained_player->isChained()){
 
-                        LogMessage log;
-                        log.type = "#IronChainDamage";
-                        log.from = chained_player;
-                        room->sendLog(log);
+                            DamageStruct chain_damage = damage;
+                            chain_damage.to = chained_player;
+                            chain_damage.chain = true;
 
-                        DamageStruct chain_damage = damage;
-                        chain_damage.to = chained_player;
-                        chain_damage.chain = true;
-
-                        room->damage(chain_damage);
+                            room->damage(chain_damage);
+                        }
                     }
                 }
             }
-
             break;
         }
 
@@ -493,18 +497,15 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
             damage.from = effect.from;
             damage.to = effect.to;
             damage.nature = effect.nature;
-
             room->damage(damage);
-
-            effect.to->removeMark("qinggang");
 
             break;
         }
 
     case SlashMissed:{
             SlashEffectStruct effect = data.value<SlashEffectStruct>();
-            effect.to->removeMark("qinggang");
-
+            if(effect.to->getMark("qinggang") > 0)
+                effect.to->setMark("qinggang", 0);
             break;
         }
 
@@ -564,10 +565,8 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
 
             JudgeStar judge = data.value<JudgeStar>();
             judge->card = Sanguosha->getCard(card_id);
-            /* revive this after TopDrawPile works
-            room->moveCardTo(judge->card, NULL, NULL, Player::TopDrawPile,
-                CardMoveReason(CardMoveReason::S_REASON_JUDGE, judge->who->objectName(), QString(), QString(), judge->reason), true);  */
-            room->moveCardTo(judge->card, NULL, judge->who, Player::Special,
+
+            room->moveCardTo(judge->card, NULL, judge->who, Player::PlaceTable,
                 CardMoveReason(CardMoveReason::S_REASON_JUDGE, judge->who->objectName(), QString(), QString(), judge->reason), true);
             LogMessage log;
             log.type = "$InitialJudge";
@@ -582,10 +581,6 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
 
     case FinishJudge:{
             JudgeStar judge = data.value<JudgeStar>();
-            if(room->getCardPlace(judge->card->getEffectiveId()) == Player::Special){
-                CardMoveReason reason(CardMoveReason::S_REASON_JUDGEDONE, judge->who->objectName(), QString(), QString());
-                room->throwCard(judge->card, reason, judge->who);
-            }
             LogMessage log;
             log.type = "$JudgeResult";
             log.from = player;
@@ -593,17 +588,24 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
             room->sendLog(log);
 
             room->sendJudgeResult(judge);
-            /* revive this after TopDrawPile works
-            if(room->getCardPlace(judge->card->getEffectiveId()) == Player::TopDrawPile){
-                CardMoveReason reason(CardMoveReason::S_REASON_JUDGEDONE, juege->who->objectName(), QString(), QString());
+
+            if(room->getCardPlace(judge->card->getEffectiveId()) == Player::PlaceTable){
+                CardMoveReason reason(CardMoveReason::S_REASON_JUDGEDONE, judge->who->objectName(), QString(), QString());
                 room->throwCard(judge->card, reason, judge->who);
-            }  */
+            }
             break;
         }
 
     case Pindian:{
             PindianStar pindian = data.value<PindianStar>();
+            // modify this
+            CardMoveReason reason1(CardMoveReason::S_REASON_PINDIAN, pindian->from->objectName(), pindian->to->objectName(),
+                pindian->reason, QString());
+            room->moveCardTo(pindian->from_card, pindian->from, NULL, Player::DiscardPile, reason1, true);
 
+
+            CardMoveReason reason2(CardMoveReason::S_REASON_PINDIAN, pindian->to->objectName());
+            room->moveCardTo(pindian->to_card, pindian->to, NULL, Player::DiscardPile, reason2, true);
             LogMessage log;
 
             log.type = "$PindianResult";
@@ -616,17 +618,6 @@ bool GameRule::trigger(TriggerEvent event, Room* room, ServerPlayer *player, QVa
             log.card_str = pindian->to_card->getEffectIdString();
             room->sendLog(log);
 
-            CardMoveReason reason(CardMoveReason::S_REASON_PINDIAN, pindian->from->objectName(), pindian->to->objectName(),
-                pindian->reason, QString());
-            /* revive this when DealingArea works
-            room->moveCardTo(pindian->from_card, pindian->from, NULL, Player::DealingArea, reason);   */
-            room->moveCardTo(pindian->from_card, pindian->from, NULL, Player::DiscardPile, reason);
-
-
-            CardMoveReason reason2(CardMoveReason::S_REASON_PINDIAN, pindian->to->objectName());
-            /* revive this when DealingArea works
-            room->moveCardTo(pindian->to_card, pindian->to, NULL, Player::DealingArea, reason);   */
-            room->moveCardTo(pindian->to_card, pindian->to, NULL, Player::DiscardPile, reason2);
             break;
         }
 

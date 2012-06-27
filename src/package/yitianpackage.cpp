@@ -31,7 +31,7 @@ YitianSword::YitianSword(Suit suit, int number)
 }
 
 void YitianSword::onMove(const CardMoveStruct &move) const{
-    if(move.from_place == Player::Equip && move.from->isAlive()){
+    if(move.from_place == Player::PlaceEquip && move.from->isAlive()){
         ServerPlayer* from = (ServerPlayer*) move.from;
         Room *room = from->getRoom();
 
@@ -755,7 +755,7 @@ public:
         DamageStruct damage = data.value<DamageStruct>();
 
         if(wuling == "wind"){
-            if(damage.nature == DamageStruct::Fire && !damage.chain){
+            if(damage.nature == DamageStruct::Fire && !damage.chain && !damage.transfer){
                 damage.damage ++;
                 data = QVariant::fromValue(damage);
 
@@ -767,7 +767,7 @@ public:
                 room->sendLog(log);
             }
         }else if(wuling == "thunder"){
-            if(damage.nature == DamageStruct::Thunder && !damage.chain){
+            if(damage.nature == DamageStruct::Thunder && !damage.chain && !damage.transfer){
                 damage.damage ++;
                 data = QVariant::fromValue(damage);
 
@@ -1144,12 +1144,12 @@ public:
             else
                 to_exchange = room->askForExchange(player, "gongmou", x);
 
-            room->moveCardTo(to_exchange, zhongshiji, Player::Hand, false);
+            room->moveCardTo(to_exchange, zhongshiji, Player::PlaceHand, false);
 
             delete to_exchange;
 
             to_exchange = room->askForExchange(zhongshiji, "gongmou", x);
-            room->moveCardTo(to_exchange, player, Player::Hand, false);
+            room->moveCardTo(to_exchange, player, Player::PlaceHand, false);
 
             delete to_exchange;
 

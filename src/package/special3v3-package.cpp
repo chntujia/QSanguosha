@@ -40,31 +40,43 @@ protected:
     }
 };
 
-class Hongyuan:public TriggerSkill{
+class Hongyuan:public DrawCardsSkill{
 public:
-    Hongyuan():TriggerSkill("hongyuan"){
-        events << PhaseChange;
+    Hongyuan():DrawCardsSkill("hongyuan"){
         frequency = NotFrequent;
         view_as_skill = new HongyuanViewAsSkill;
     }
 
-
-    virtual bool trigger(TriggerEvent , Room* room, ServerPlayer *zhugejin, QVariant &data) const{
-        if(zhugejin->getPhase() == Player::Draw && room->askForSkillInvoke(zhugejin, objectName())){
+    virtual int getDrawNum(ServerPlayer *zhugejin, int n) const{
+        Room *room = zhugejin->getRoom();
+        if(room->askForSkillInvoke(zhugejin, objectName())){
             room->broadcastSkillInvoke(objectName());
+            room->setPlayerFlag(zhugejin, "Invoked");
+            return n - 1;
+        }else
+            return n;
+    }
+};
+
+class HongyuanAct: public TriggerSkill{
+public:
+    HongyuanAct():TriggerSkill("#hongyuan"){
+        events << CardDrawnDone;
+    }
+
+    virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *zhugejin, QVariant &data) const{
+        if(zhugejin->getPhase() == Player::Draw && zhugejin->hasFlag("Invoked")){
+            room->setPlayerFlag(zhugejin, "-Invoked");
             if(ServerInfo.GameMode == "06_3v3"){
-                zhugejin->drawCards(1);
                 foreach(ServerPlayer *other, room->getOtherPlayers(zhugejin)){
                     if(AI::GetRelation3v3(zhugejin, other) == AI::Friend)
                         other->drawCards(1);
                 }
 
             }else{
-                zhugejin->drawCards(1);
                 if(!room->askForUseCard(zhugejin, "@@hongyuan", "@hongyuan"))
                    zhugejin->drawCards(1);
             }
-            return true;
         }
         return false;
     }
@@ -126,7 +138,7 @@ public:
     }
 
     virtual bool triggerable(const ServerPlayer *target) const{
-        return TriggerSkill::triggerable(target) && !target->isKongcheng();
+        return TriggerSkill::triggerable(target) && !target->isNude();
     }
 
     virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *player, QVariant &data) const{
@@ -161,17 +173,14 @@ public:
         if(card){
             // the only difference for Guicai & Guidao
             CardMoveReason reason(CardMoveReason::S_REASON_JUDGEDONE, QString());
-            // remove below after TopDrawPile works
             if(room->getCardPlace(judge->card->getEffectiveId()) != Player::DiscardPile
-                || room->getCardPlace(judge->card->getEffectiveId()) != Player::Hand)
+                || room->getCardPlace(judge->card->getEffectiveId()) != Player::PlaceHand)
                 room->throwCard(judge->card, reason, judge->who);
 
             judge->card = Sanguosha->getCard(card->getEffectiveId());
-            /* revive this when TopDrawPile is OK
-            room->moveCardTo(judge->card, player, NULL, Player::TopDrawPile,
-                CardMoveReason(CardMoveReason::S_REASON_RETRIAL, player->objectName(), "huanshi", QString()), true); */
-            room->moveCardTo(judge->card, player, judge->who, Player::Special,
-                CardMoveReason(CardMoveReason::S_REASON_JUDGEDONE, player->objectName(), "huanshi", QString()), true);
+
+            room->moveCardTo(judge->card, player, NULL, Player::PlaceTable,
+                CardMoveReason(CardMoveReason::S_REASON_RETRIAL, player->objectName(), "huanshi", QString()), true);
             LogMessage log;
             log.type = "$ChangedJudge";
             log.from = player;
@@ -189,7 +198,7 @@ public:
 class Mingzhe: public TriggerSkill{
 public:
     Mingzhe():TriggerSkill("mingzhe"){
-        events << CardUsed << CardResponsed << CardDiscarded;
+        events << CardUsed << CardResponsed << CardLostOnePiece;
         frequency = Frequent;
     }
 
@@ -202,23 +211,20 @@ public:
             CardUseStruct use = data.value<CardUseStruct>();
             card = use.card;
         }
-        else
+        else if(event == CardResponsed){
             card = data.value<CardStar>();
+        }
+        else{
+            CardMoveStar move = data.value<CardMoveStar>();
+            if(move->from_place == Player::PlaceDelayedTrick || move->from_place == Player::PlaceSpecial)
+                return false;
+            if((move->reason.m_reason & CardMoveReason::S_MASK_BASIC_REASON) != CardMoveReason::S_REASON_DISCARD)
+                return false;
+            card = Sanguosha->getCard(move->card_id);
+        }
 
         int n = 0;
-        if(event == CardDiscarded){
-            if(card->isVirtualCard()){
-                foreach(int card_id, card->getSubcards()){
-                    const Card *subcard = Sanguosha->getCard(card_id);
-                    if(subcard->isRed())
-                        n++;
-                }
-            }
-            else if(card->isRed())
-                n++;
-        }
-        else
-            n = card->isRed() ? 1 : 0;
+        n = card->isRed() ? 1 : 0;
 
         if(n>0 && player->askForSkillInvoke(objectName(), data))
             player->drawCards(n);
@@ -248,7 +254,9 @@ Special3v3Package::Special3v3Package():Package("Special3v3")
     General *zhugejin = new General(this, "zhugejin", "wu", 3, true);
     zhugejin->addSkill(new Huanshi);
     zhugejin->addSkill(new Hongyuan);
+    zhugejin->addSkill(new HongyuanAct);
     zhugejin->addSkill(new Mingzhe);
+    related_skills.insertMulti("hongyuan", "#hongyuan");
 
     addMetaObject<HuanshiCard>();
     addMetaObject<HongyuanCard>();

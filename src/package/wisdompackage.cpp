@@ -21,7 +21,7 @@ bool JuaoCard::targetFilter(const QList<const Player *> &targets, const Player *
 
 void JuaoCard::onEffect(const CardEffectStruct &effect) const{
     foreach(int cardid, this->getSubcards()){
-        //source->getRoom()->moveCardTo(Sanguosha->getCard(cardid), targets.first(), Player::Special);
+        //source->getRoom()->moveCardTo(Sanguosha->getCard(cardid), targets.first(), Player::PlaceSpecial);
         effect.to->addToPile("hautain", cardid, false);
     }
     effect.to->addMark("juao");
@@ -195,7 +195,7 @@ public:
     virtual bool trigger(TriggerEvent, Room* room, ServerPlayer *jiangwei, QVariant &data) const{
         if(jiangwei->isKongcheng()){
             CardMoveStar move = data.value<CardMoveStar>();
-            if(move->from_place != Player::Hand)
+            if(move->from_place != Player::PlaceHand)
                 return false;
 
             Room *room = jiangwei->getRoom();
@@ -270,9 +270,9 @@ public:
            && room->askForSkillInvoke(player, objectName())){
             for(int i = 0; i < 4 - handcardnum; i++){
                 int card_id = room->drawCard();
-                /* revive this after TopDrawPile works
-                room->moveCardTo(Sanguosha->getCard(card_id), player, Player::TopDrawPile, true);  */
-                room->moveCardTo(Sanguosha->getCard(card_id), player, Player::Special, true);
+
+                room->moveCardTo(Sanguosha->getCard(card_id), player, Player::PlaceTable,
+                                 CardMoveReason(CardMoveReason::S_REASON_SHOW, player->objectName(), QString(), "chouliang", QString()), true);
                 room->getThread()->delay();
 
                 const Card *card = Sanguosha->getCard(card_id);

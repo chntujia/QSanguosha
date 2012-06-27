@@ -144,8 +144,6 @@ sgs.ai_skill_invoke.jiefan = function(self, data)
 		and (currentplayer:getHandcardNum() > 2 or self:isEquip("EightDiagram", currentplayer))) and slashnum > 0
 end
 
-sgs.ai_skill_choice.jiefan = sgs.ai_skill_choice.collateral
-
 sgs.ai_skill_cardask["jiefan-slash"] = function(self, data, pattern, target)
 	target = target or global_room:getCurrent()
 	for _, slash in ipairs(self:getCards("Slash")) do
@@ -155,6 +153,8 @@ sgs.ai_skill_cardask["jiefan-slash"] = function(self, data, pattern, target)
 	end
 	return "."
 end
+
+sgs.ai_skill_choice.jiefan = sgs.ai_skill_choice.collateral
 
 anxu_skill={}
 anxu_skill.name="anxu"
@@ -303,7 +303,10 @@ sgs.ai_skill_use["@@chunlao"] = function(self, prompt)
 	return "."
 end
 
-sgs.ai_skill_invoke.chunlao = sgs.ai_skill_invoke.buyi
+sgs.ai_skill_invoke.chunlao = function(self, data)
+	local dying = data:toDying()
+	return self:isFriend(dying.who) and self.player:getPile("wine"):length() > 0
+end
 
 sgs.chengpu_keep_value = 
 {

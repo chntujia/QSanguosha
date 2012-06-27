@@ -374,9 +374,8 @@ bool Client::_loseSingleCard(int card_id, CardsMoveStruct move)
         if(move.from_place == Player::DiscardPile)
             discarded_list.removeOne(card);
         else if(move.from_place == Player::DrawPile && !Self->hasFlag("marshalling"))
-                pile_num--;        
+            pile_num--;        
     }
-    updatePileNum();
     return true;
 }
 
@@ -393,8 +392,6 @@ bool Client::_getSingleCard(int card_id, CardsMoveStruct move)
         else if(move.to_place == Player::DiscardPile)
             discarded_list.prepend(card);        
     }
-
-    updatePileNum();
     return true;
 }
 void Client::getCards(const Json::Value& arg)
@@ -408,9 +405,9 @@ void Client::getCards(const Json::Value& arg)
         if (!move.tryParse(arg[i])) return;
         move.from = getPlayer(move.from_player_name);
         move.to = getPlayer(move.to_player_name);
-        Player::Place dstPlace = move.to_place;        
+        Player::Place dstPlace = move.to_place;
     
-        if (dstPlace == Player::Special)
+        if (dstPlace == Player::PlaceSpecial)
             ((ClientPlayer*)move.to)->changePile(move.to_pile_name, true, move.card_ids);
         else{
             foreach (int card_id, move.card_ids)
@@ -418,6 +415,7 @@ void Client::getCards(const Json::Value& arg)
         }
         moves.append(move);
     }
+    updatePileNum();
     emit move_cards_got(moveId, moves);
 }
 
@@ -434,7 +432,7 @@ void Client::loseCards(const Json::Value& arg)
         move.to = getPlayer(move.to_player_name);
         Player::Place srcPlace = move.from_place;   
         
-        if (srcPlace == Player::Special)        
+        if (srcPlace == Player::PlaceSpecial)        
             ((ClientPlayer*)move.from)->changePile(move.from_pile_name, false, move.card_ids);
         else {
             foreach (int card_id, move.card_ids)
@@ -442,6 +440,7 @@ void Client::loseCards(const Json::Value& arg)
         }
         moves.append(move);
     }
+    updatePileNum();
     emit move_cards_lost(moveId, moves);    
 }
 
@@ -930,7 +929,8 @@ bool Client::hasNoTargetResponsing() const{
 }
 
 ClientPlayer *Client::getPlayer(const QString &name){
-    if (name == Self->objectName() || name == QSanProtocol::S_PLAYER_SELF_REFERENCE_ID) return Self;
+    if (name == Self->objectName() ||
+        name == QSanProtocol::S_PLAYER_SELF_REFERENCE_ID) return Self;
     else return findChild<ClientPlayer *>(name);
 }
 
@@ -956,8 +956,6 @@ void Client::setLines(const QString &filename){
             skill_name.chop(1);
 
         skill_title = Sanguosha->translate(skill_name);
-
-        updatePileNum();
     }
 }
 
@@ -1278,7 +1276,7 @@ void Client::takeAG(const QString &take_str){
     const Card *card = Sanguosha->getCard(card_id);
     if(taker_name != "."){
         ClientPlayer *taker = getPlayer(taker_name);
-        taker->addCard(card, Player::Hand);
+        taker->addCard(card, Player::PlaceHand);
         emit ag_taken(taker, card_id);
     }else{
         discarded_list.prepend(card);
